@@ -2,9 +2,9 @@
 
 Record or upload a mentorship session, and get back the words it was actually about.
 
-One screen. Two ways in, one pipeline: the audio is converted in the browser, transcribed by an
-AI service, reduced to the terms that dominated the conversation, and drawn as a word cloud you
-can download as a PNG.
+One screen. Two ways in, one pipeline: the audio is prepared in the browser, transcribed by an AI
+service, reduced to the terms that dominated the conversation, and drawn as a word cloud you can
+download as a PNG.
 
 Live: <LIVE_URL>
 
@@ -13,8 +13,8 @@ Live: <LIVE_URL>
 All four required parts work end to end on the live URL.
 
 - **Record in the browser.** Start and stop, a red stop glyph and a ring that fills toward the 10
-  minute cap, a running timer, and a level meter driven by a real frequency analysis of the
-  microphone. Playback before you commit, and discard to record again.
+  minute cap, a running timer, and a meter driven by a real frequency analysis of the microphone.
+  Playback before you commit, and discard to record again.
 - **Upload a file.** File picker and drag and drop. Name, size and duration are shown before you
   commit. Anything that is not an accepted format is refused with a message that names the
   extension and lists what is accepted.
@@ -27,15 +27,14 @@ first.
 
 Session only. Nothing is stored, there are no accounts, and closing the tab discards everything.
 
-### Verified failure cases
+### Failure cases, each one triggered and checked
 
-Each of these was triggered deliberately and produces a message that says what happened and what
-to do next, never a frozen screen or a console error:
+None of these produce a frozen screen, a silent failure, or a raw console error:
 
 - Microphone permission denied, missing, or already in use by another app
-- A file over 25 MB (refused before any upload, naming the actual size)
+- A file over 25 MB, refused before any upload, naming the actual size
 - A file in an unsupported format
-- Audio with no audible sound in it (caught in the browser, before any upload)
+- Audio with no audible sound in it, caught in the browser before any upload
 - The AI service failing, rate limiting, timing out, or the server having no API key
 
 ## Run it locally
@@ -44,24 +43,43 @@ to do next, never a frozen screen or a console error:
 git clone <REPO_URL>
 cd session-gist
 npm install
-cp .env.example .env.local
+cp .dev.vars.example .dev.vars
 ```
 
-Put a Groq API key in `.env.local`. A free key is available at https://console.groq.com/keys
+Put a Groq API key in `.dev.vars`. A free key, no card needed, from https://console.groq.com/keys
 
 ```
 GROQ_API_KEY=gsk_your_key_here
 ```
 
-Then:
+The file is called `.dev.vars` rather than `.env` because that is how Cloudflare Workers reads
+secrets in local development. It is gitignored, and `.dev.vars.example` is the committed template.
 
 ```
 npm run dev
 ```
 
-Open http://localhost:3000
+Open http://localhost:5173
 
-To build for production: `npm run build` then `npm start`.
+One command runs both the app and the Worker, because the Cloudflare Vite plugin runs the Worker
+inside the dev server.
+
+Other commands: `npm run build`, `npm run typecheck`, `npm run lint`.
+
+## Deploying
+
+```
+npm run deploy
+```
+
+That builds and runs `wrangler deploy`. Set the key on the deployed Worker once, separately:
+
+```
+npx wrangler secret put GROQ_API_KEY
+```
+
+The key is never in the repo and never reaches the browser. It lives only as a Worker secret, and
+the browser talks only to `/api/analyze` on the same origin.
 
 ## The AI service, and why
 
@@ -70,40 +88,54 @@ To build for production: `npm run build` then `npm start`.
 - `whisper-large-v3-turbo` for transcription
 - `openai/gpt-oss-120b` to read the transcript and return weighted terms as strict JSON
 
-Groq was chosen because it has a genuinely free tier that needs no card, and because it is fast.
-Transcription is the slowest step in this app, and it is the one the user is sitting and waiting
-through, so latency mattered more than anything else on offer.
+Groq has a genuinely free tier that needs no card, and it is fast. Transcription is the slowest
+step and the one the user sits and waits through, so latency mattered more than anything else on
+offer.
 
 The second model call is the point of the feature. Counting word frequencies would put "think",
 "going" and "really" at the top of every session. Instead the model is asked to weight terms by
-how much the session was genuinely about them, to merge plurals, case and obvious variants, and
-to drop filler and backchannel. The response is constrained with a JSON schema so the shape is
+how much the session was genuinely about them, to merge plurals, case and obvious variants, and to
+drop filler and backchannel. The response is constrained with a JSON schema, so the shape is
 guaranteed rather than hoped for.
 
 ## Decisions worth defending
 
+**No framework.** This is one page and one endpoint. It has no routing, no server rendering and
+nothing to hydrate. Next.js would have meant adding an adapter whose only job is to undo Next on a
+platform that does not need it, and that adapter would be the most likely thing to break the live
+URL. Vite builds the page, one Worker file answers the one request.
+
 **The browser converts the audio to 16 kHz mono MP3 before uploading.** This is the least obvious
-piece of the build and the one that makes the stated limits achievable. Vercel caps a serverless
-request body at 4.5 MB, and the brief allows files up to 25 MB, so passing the original file
-straight through would fail with a 413 on exactly the large sessions the tool exists for. The
-audio is decoded, mixed to mono, resampled to 16 kHz and encoded to a 32 kbps MP3 in the browser
-first. A 10 minute session lands at roughly 2.4 MB. This is also what Groq's own documentation
-recommends for speech, and it makes uploading over a phone connection far quicker. The cost is a
-few seconds of work on the user's device, which is shown as a real progress bar rather than a
-spinner.
+part of the build. A 10 minute session arrives at roughly 2.4 MB instead of 25 MB. Three reasons:
+Groq's free tier caps audio uploads at 25 MB, so a large original sits right at the edge;
+uploading 25 MB over a phone connection is slow, and this is meant to be usable on a phone; and
+Cloudflare's free plan allows only 10 ms of CPU per request, so the Worker must never do heavy
+work on the body. Downsampling to 16 kHz mono is also exactly what Groq's own documentation
+recommends for speech. The cost is a few seconds of work on the user's device, shown as a real
+progress bar rather than a spinner.
+
+**The Worker forwards the upload instead of parsing it.** It reads the body as bytes and passes
+them straight to Groq with the key attached, rather than decoding the multipart form. Parsing a
+few MB of multipart could exceed the 10 ms CPU limit and return a Cloudflare 1102 error, which
+would look to the user exactly like the flaky API failure this brief asks you to handle properly.
+The trade-off is that the browser sets the transcription parameters in the form body, so the
+endpoint trusts its own client more than it otherwise would. For an unauthenticated evaluation app
+on a free key that is an acceptable trade. With real users I would put size and rate limits in
+front of it and validate the fields.
 
 **The word cloud is horizontal only, and weight controls tone as well as size.** Rotated words
-look busier but are slower to read, and the brief asks for a result that is readable in a glance.
-Dominant terms are large and near black; terms that barely came up are small and light grey, so
-they recede instead of competing. Size alone was not enough separation on a white background.
+look busier but are slower to read, and the brief asks for a result readable in a glance. Dominant
+terms are large and near black; terms that barely came up are small and light grey, so they recede
+instead of competing. Size alone was not enough separation on a white background.
 
 **Deliberately not built:** accounts, saved history, speaker separation, live transcription while
-recording, and multiple languages. Section 05 of the brief rules these out, and each one would
-have taken time away from the four parts that are actually marked.
+recording, and multiple languages. Section 05 rules these out, and each would have taken time from
+the four parts that are actually marked.
 
 ## Not my own code
 
-- **Next.js 16 / React 19** for the app and the one API route
+- **React 19** and **Vite** for the page and the build
+- **@cloudflare/vite-plugin** and **wrangler** to run and deploy the Worker
 - **d3-cloud** for the word cloud layout algorithm
 - **@breezystack/lamejs** for MP3 encoding in the browser
 - **Sentient** by the Indian Type Foundry, a free licensed typeface from Fontshare, self hosted in
@@ -115,11 +147,10 @@ project.
 
 ## AI coding tools
 
-Yes, throughout. I used Claude Code to write and refactor the implementation, and drove it
-against a brief I set: the product decisions, the palette, the failure behaviour, the scope cuts
-and the review of what it produced are mine. Every failure path listed above was triggered and
-checked in a real browser rather than assumed, including the 25 MB refusal and the denied
-microphone.
+Yes, throughout. I used Claude Code to write and refactor the implementation, against a brief I
+set: the product decisions, the palette, the failure behaviour, the scope cuts and the review of
+what it produced are mine. Every failure path listed above was triggered in a real browser and
+checked, including the 25 MB refusal and the denied microphone, rather than assumed to work.
 
 ## With another week
 
@@ -127,5 +158,6 @@ microphone.
 - Keep the last few analyses in the browser so a mentor can come back to one
 - Split audio longer than 10 minutes into chunks and transcribe them in sequence instead of
   refusing the file
-- Stem and merge terms server side as well, so near duplicates from the model collapse into one
-- A proper test suite around the audio conversion, which is the part most likely to break quietly
+- Browser-specific wording on the microphone-denied message, since the control that unblocks it
+  sits in a different place in Chrome, Safari and Firefox
+- A test suite around the audio conversion, which is the part most likely to break quietly
