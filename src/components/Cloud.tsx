@@ -34,9 +34,19 @@ export default function Cloud({ terms, children }: { terms: Term[]; children?: R
       timer = setTimeout(measure, 140);
     });
     observer.observe(node);
+
+    const onResize = () => {
+      clearTimeout(timer);
+      timer = setTimeout(measure, 140);
+    };
+    window.addEventListener("resize", onResize);
+    window.addEventListener("orientationchange", onResize);
+
     return () => {
       clearTimeout(timer);
       observer.disconnect();
+      window.removeEventListener("resize", onResize);
+      window.removeEventListener("orientationchange", onResize);
     };
   }, [measure]);
 

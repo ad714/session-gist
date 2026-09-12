@@ -34,27 +34,32 @@ export async function layoutCloud(terms: Term[], width: number, height: number):
   const font = displayFont();
   await ensureFont(font);
 
-  const longest = terms.reduce((most, entry) => Math.max(most, entry.term.length), 1);
-  const widthBound = (width * 1.6) / longest;
-  const ceiling = Math.min(Math.max(Math.min(width / 8, widthBound), 20), 76);
-  const floorSize = Math.max(ceiling * 0.26, 12);
+  const ceiling = Math.min(Math.max(width / 8, 22), 76);
+  const floorSize = Math.max(ceiling * 0.24, 12);
 
   let best: Omit<Placed, "colour">[] = [];
 
+  const ranked = [...terms].sort((a, b) => b.weight - a.weight);
+
   for (let attempt = 0; attempt < 5; attempt++) {
     const shrink = 1 - attempt * 0.15;
-    const sized = terms.map((entry) => ({
-      text: entry.term,
-      weight: entry.weight,
-      size: sizeFor(entry.weight, floorSize, ceiling) * shrink,
-    }));
+    let cap = Infinity;
+    const sized = ranked.map((entry) => {
+      const wanted = Math.min(
+        sizeFor(entry.weight, floorSize, ceiling),
+        (width * 1.7) / Math.max(entry.term.length, 1),
+      );
+      const size = Math.min(wanted, cap);
+      cap = size;
+      return { text: entry.term, weight: entry.weight, size: size * shrink };
+    });
 
     const placed = await run(sized, width, height, font);
     if (placed.length > best.length) best = placed;
-    if (best.length === terms.length) break;
+    if (best.length === ranked.length) break;
   }
 
-  const lead = terms[0]?.term;
+  const lead = ranked[0]?.term;
   return centre(best, font).map((word) => ({
     ...word,
     colour: word.text === lead ? LEAD_COLOUR : toneFor(word.weight),

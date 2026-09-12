@@ -468,7 +468,7 @@
   }
 
   .stage {
-    height: clamp(300px, 46vh, 400px);
+    height: clamp(340px, 56vh, 440px);
   }
 
   .clock {
