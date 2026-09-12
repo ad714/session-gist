@@ -8,16 +8,19 @@ const TERMS_MODEL = "openai/gpt-oss-120b";
 const MAX_BODY = 6 * 1024 * 1024;
 const MAX_TERMS = 45;
 
-const INSTRUCTIONS = `You are given the transcript of a recorded one-to-one mentorship session between a mentor and a school student. Identify what the session was actually about.
+const INSTRUCTIONS = `You are given the transcript of a recorded spoken session. It might be a one-to-one conversation, a monologue, a lesson, a meeting or someone thinking out loud. The subject can be anything at all.
+
+Identify what the session was actually about.
 
 Rules:
-- Pick the topics, skills, subjects, concerns and named things the session genuinely dwelt on.
+- Pick the topics, skills, subjects, plans, problems and named things the speaking genuinely dwelt on, whatever the subject matter happens to be. Never assume a subject area.
 - Weight by how much the session was about that term, not by how many times the word appears. The single most dominant term gets 100. Terms mentioned once in passing sit below 20.
 - Merge case, plurals and obvious variants of the same idea into one canonical term, lower case.
 - Each term is one to three words.
 - Exclude filler, greetings, backchannel and stopwords: um, yeah, okay, like, you know, sort of, I mean, right, so, actually, basically.
 - Exclude generic verbs and pleasantries that carry no subject matter.
-- Return between 10 and 40 terms. If the transcript carries no real content, return an empty list.`;
+- Return as many terms as the content genuinely supports, up to 40. A short recording will support fewer, and three or four good terms is a perfectly good answer.
+- Return an empty list only when there is genuinely no content to describe, such as silence, noise, or a handful of stray words.`;
 
 const TERMS_SCHEMA = {
   type: "object",
@@ -90,7 +93,7 @@ async function analyse(request: Request, env: Env): Promise<Response> {
   }
 
   if (!terms.length) {
-    return fail(422, "There was speech in that audio, but not enough of it to find any real topics.");
+    return fail(422, "We could not pick out any clear topics. The recording may be very short, or mostly filler.");
   }
 
   return Response.json({ terms, transcript: transcript.trim() });
