@@ -415,6 +415,14 @@
   color: var(--ink);
 }
 
+.transcriptBody {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding-top: 8px;
+}
+
 .transcript p {
   margin: 10px 0 0;
   color: var(--ink-2);

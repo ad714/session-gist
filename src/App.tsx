@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Cloud from "@/components/Cloud";
+import CopyButton from "@/components/CopyButton";
 import Recorder from "@/components/Recorder";
 import Uploader from "@/components/Uploader";
 import { MAX_SECONDS, checkFile, formatBytes, formatClock, prepare, readDuration } from "@/lib/audio";
@@ -174,13 +175,21 @@ export default function App() {
       {phase === "done" && analysis && (
         <section className={styles.result} aria-label="Result">
           <Cloud terms={analysis.terms}>
+            <CopyButton
+              className={styles.quiet}
+              label="Copy words"
+              text={analysis.terms.map((entry) => entry.term).join("\n")}
+            />
             <button type="button" className={styles.quiet} onClick={reset}>
               Analyse another session
             </button>
           </Cloud>
           <details className={styles.transcript}>
             <summary>Transcript</summary>
-            <p>{analysis.transcript}</p>
+            <div className={styles.transcriptBody}>
+              <CopyButton className={styles.link} label="Copy transcript" text={analysis.transcript} />
+              <p>{analysis.transcript}</p>
+            </div>
           </details>
         </section>
       )}
