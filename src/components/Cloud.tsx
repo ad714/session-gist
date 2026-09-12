@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { type Placed, type Term, drawToCanvas, layoutCloud } from "@/lib/cloud";
 import styles from "@/app.module.css";
 
@@ -10,27 +10,35 @@ export default function Cloud({ terms, children }: { terms: Term[]; children?: R
   const [box, setBox] = useState({ width: 0, height: 0 });
   const [render, setRender] = useState<{ words: Placed[]; width: number; height: number } | null>(null);
 
+  const measure = useCallback(() => {
+    const node = host.current;
+    if (!node) return;
+    const rect = node.getBoundingClientRect();
+    const width = Math.round(rect.width);
+    const height = Math.round(rect.height);
+    setBox((current) =>
+      current.width === width && current.height === height ? current : { width, height },
+    );
+  }, []);
+
+  useLayoutEffect(() => {
+    measure();
+  }, [measure]);
+
   useEffect(() => {
     const node = host.current;
     if (!node) return;
     let timer: ReturnType<typeof setTimeout>;
-    const observer = new ResizeObserver((entries) => {
-      const rect = entries[0].contentRect;
+    const observer = new ResizeObserver(() => {
       clearTimeout(timer);
-      timer = setTimeout(() => {
-        setBox((current) => {
-          const width = Math.round(rect.width);
-          const height = Math.round(rect.height);
-          return current.width === width && current.height === height ? current : { width, height };
-        });
-      }, 140);
+      timer = setTimeout(measure, 140);
     });
     observer.observe(node);
     return () => {
       clearTimeout(timer);
       observer.disconnect();
     };
-  }, []);
+  }, [measure]);
 
   useEffect(() => {
     if (!box.width || !box.height || !terms.length) return;

@@ -55,8 +55,13 @@ export default function App() {
       setPhase("failed");
       return;
     }
+    setSource({ blob: file, name: file.name, bytes: file.size, seconds: null });
+    setMessage("");
+    setPhase("review");
+
     const seconds = await readDuration(file);
-    if (seconds !== null && seconds > MAX_SECONDS + 1) {
+    if (seconds === null) return;
+    if (seconds > MAX_SECONDS + 1) {
       setSource(null);
       setMessage(
         `That file is ${formatClock(seconds)} long. The limit is 10 minutes, so please trim it first.`,
@@ -64,9 +69,7 @@ export default function App() {
       setPhase("failed");
       return;
     }
-    setSource({ blob: file, name: file.name, bytes: file.size, seconds });
-    setMessage("");
-    setPhase("review");
+    setSource((current) => (current && current.blob === file ? { ...current, seconds } : current));
   };
 
   const start = async () => {

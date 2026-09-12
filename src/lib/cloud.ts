@@ -34,11 +34,15 @@ export async function layoutCloud(terms: Term[], width: number, height: number):
   const font = displayFont();
   await ensureFont(font);
 
-  const ceiling = Math.min(Math.max(width / 7.5, 30), 88);
-  const floorSize = Math.max(ceiling * 0.2, 11);
+  const longest = terms.reduce((most, entry) => Math.max(most, entry.term.length), 1);
+  const widthBound = (width * 1.6) / longest;
+  const ceiling = Math.min(Math.max(Math.min(width / 8, widthBound), 20), 76);
+  const floorSize = Math.max(ceiling * 0.26, 12);
 
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const shrink = 1 - attempt * 0.18;
+  let best: Omit<Placed, "colour">[] = [];
+
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const shrink = 1 - attempt * 0.15;
     const sized = terms.map((entry) => ({
       text: entry.term,
       weight: entry.weight,
@@ -46,16 +50,46 @@ export async function layoutCloud(terms: Term[], width: number, height: number):
     }));
 
     const placed = await run(sized, width, height, font);
-    if (placed.length === terms.length || attempt === 2) {
-      const lead = terms[0]?.term;
-      return placed.map((word) => ({
-        ...word,
-        colour: word.text === lead ? LEAD_COLOUR : toneFor(word.weight),
-      }));
-    }
+    if (placed.length > best.length) best = placed;
+    if (best.length === terms.length) break;
   }
 
-  return [];
+  const lead = terms[0]?.term;
+  return centre(best, font).map((word) => ({
+    ...word,
+    colour: word.text === lead ? LEAD_COLOUR : toneFor(word.weight),
+  }));
+}
+
+function centre<T extends { text: string; size: number; x: number; y: number }>(
+  words: T[],
+  font: string,
+): T[] {
+  const context = document.createElement("canvas").getContext("2d");
+  if (!context || !words.length) return words;
+
+  let left = Infinity;
+  let right = -Infinity;
+  let top = Infinity;
+  let bottom = -Infinity;
+
+  for (const word of words) {
+    context.font = `700 ${word.size}px ${font}`;
+    const metrics = context.measureText(word.text);
+    const half = metrics.width / 2;
+    const ascent = metrics.actualBoundingBoxAscent || word.size * 0.75;
+    const descent = metrics.actualBoundingBoxDescent || word.size * 0.25;
+    left = Math.min(left, word.x - half);
+    right = Math.max(right, word.x + half);
+    top = Math.min(top, word.y - ascent);
+    bottom = Math.max(bottom, word.y + descent);
+  }
+
+  if (!Number.isFinite(left) || !Number.isFinite(top)) return words;
+
+  const shiftX = (left + right) / 2;
+  const shiftY = (top + bottom) / 2;
+  return words.map((word) => ({ ...word, x: word.x - shiftX, y: word.y - shiftY }));
 }
 
 type CloudWord = { text: string; size: number; x?: number; y?: number };
@@ -77,7 +111,7 @@ function run(
       .fontWeight(700)
       .fontSize((word) => word.size ?? 12)
       .spiral("archimedean")
-      .random(() => 0.5)
+      .random(seeded())
       .on("end", (placed) => {
         resolve(
           placed.map((word) => ({
@@ -91,6 +125,14 @@ function run(
       })
       .start();
   });
+}
+
+function seeded(): () => number {
+  let state = 0x2f6e2b1;
+  return () => {
+    state = (state * 1103515245 + 12345) & 0x7fffffff;
+    return state / 0x7fffffff;
+  };
 }
 
 function sizeFor(weight: number, floorSize: number, ceiling: number): number {
