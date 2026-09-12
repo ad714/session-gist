@@ -132,7 +132,7 @@ function startMeter(media: MediaStream, onLevels: (values: number[]) => void): (
   const edges = Array.from({ length: BANDS + 1 }, (_, index) =>
     Math.round(2 * Math.pow(44 / 2, index / BANDS)),
   );
-  const smoothed = new Array<number>(BANDS).fill(0);
+  const smoothed = Array.from({ length: BANDS }, () => 0);
   let frame = 0;
   let last = 0;
 
