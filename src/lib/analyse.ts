@@ -56,3 +56,33 @@ function parse(text: string): Record<string, unknown> {
     return {};
   }
 }
+
+const STORE_KEY = "session-gist:last";
+
+export function rememberAnalysis(analysis: Analysis): void {
+  try {
+    sessionStorage.setItem(STORE_KEY, JSON.stringify(analysis));
+  } catch {
+    return;
+  }
+}
+
+export function forgetAnalysis(): void {
+  try {
+    sessionStorage.removeItem(STORE_KEY);
+  } catch {
+    return;
+  }
+}
+
+export function recallAnalysis(): Analysis | null {
+  try {
+    const raw = sessionStorage.getItem(STORE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Analysis;
+    if (!Array.isArray(parsed.terms) || !parsed.terms.length) return null;
+    return { terms: parsed.terms, transcript: String(parsed.transcript ?? "") };
+  } catch {
+    return null;
+  }
+}

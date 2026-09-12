@@ -30,13 +30,18 @@ first.
 Two of the optional extras in section 06 are in: the transcript is shown beside the cloud and can
 be copied, and the words themselves can be copied. The rest were left out on purpose.
 
-Session only. Nothing is stored, there are no accounts, and closing the tab discards everything.
+Session only. There are no accounts, and closing the tab discards everything. The one exception is
+that a finished result is held in `sessionStorage` for the life of the tab, so that a phone
+dropping the page out of memory while you are in another app does not throw the analysis away. It
+is cleared the moment you start another session.
 
 ### Failure cases, each one triggered and checked
 
 None of these produce a frozen screen, a silent failure, or a raw console error:
 
-- Microphone permission denied, missing, or already in use by another app
+- Microphone permission denied, missing, or already in use by another app. A denial also offers
+  the exact steps for the browser you are actually in, since the control sits in a different place
+  in Chrome, Safari, Firefox and on a phone
 - A file over 25 MB, refused before any upload, naming the actual size
 - A file in an unsupported format
 - Audio with no audible sound in it, caught in the browser before any upload
@@ -138,6 +143,11 @@ session with a school student, and it returned nothing at all for a recording ab
 YouTube channel. The brief describes mentoring as the setting, not as a filter, so the prompt now
 describes the input only as a recorded spoken session.
 
+**The recording never depends on a repaint.** An earlier version measured the cloud with a
+ResizeObserver, which browsers do not fire for a backgrounded tab, so the result rendered as a
+plain list until you returned to the page. Anyone waiting on a long transcription switches tabs,
+so the measurement now happens synchronously and the layout needs no frame at all.
+
 **The word cloud is horizontal only, and weight controls tone as well as size.** Rotated words
 look busier but are slower to read, and the brief asks for a result readable in a glance. Dominant
 terms are large and near black; terms that barely came up are small and light grey, so they recede
@@ -173,6 +183,4 @@ checked, including the 25 MB refusal and the denied microphone, rather than assu
 - Keep the last few analyses in the browser so a mentor can come back to one
 - Split audio longer than 10 minutes into chunks and transcribe them in sequence instead of
   refusing the file
-- Browser-specific wording on the microphone-denied message, since the control that unblocks it
-  sits in a different place in Chrome, Safari and Firefox
 - A test suite around the audio conversion, which is the part most likely to break quietly

@@ -4,7 +4,8 @@ import CopyButton from "@/components/CopyButton";
 import Recorder from "@/components/Recorder";
 import Uploader from "@/components/Uploader";
 import { MAX_SECONDS, checkFile, formatBytes, formatClock, prepare, readDuration } from "@/lib/audio";
-import { type Analysis, analyse } from "@/lib/analyse";
+import { type Analysis, analyse, forgetAnalysis, recallAnalysis, rememberAnalysis } from "@/lib/analyse";
+import { micGuide } from "@/lib/micHelp";
 import { useRecorder } from "@/lib/useRecorder";
 import styles from "./app.module.css";
 
@@ -18,11 +19,11 @@ type Source = {
 type Phase = "idle" | "review" | "preparing" | "uploading" | "analysing" | "done" | "failed";
 
 export default function App() {
-  const [phase, setPhase] = useState<Phase>("idle");
+  const [analysis, setAnalysis] = useState<Analysis | null>(recallAnalysis);
+  const [phase, setPhase] = useState<Phase>(() => (analysis ? "done" : "idle"));
   const [source, setSource] = useState<Source | null>(null);
   const [percent, setPercent] = useState(0);
   const [message, setMessage] = useState("");
-  const [analysis, setAnalysis] = useState<Analysis | null>(null);
 
   const onRecorded = useCallback((blob: Blob, seconds: number) => {
     setSource({ blob, name: "Session recording", bytes: blob.size, seconds });
@@ -30,6 +31,7 @@ export default function App() {
   }, []);
 
   const recorder = useRecorder(onRecorded);
+  const guide = useMemo(() => micGuide(), []);
 
   const playback = useMemo(() => (source ? URL.createObjectURL(source.blob) : ""), [source]);
 
@@ -41,6 +43,7 @@ export default function App() {
   const reset = () => {
     setSource(null);
     setAnalysis(null);
+    forgetAnalysis();
     setMessage("");
     setPercent(0);
     setPhase("idle");
@@ -85,6 +88,7 @@ export default function App() {
       const result = await analyse(mp3, setPercent, () => setPhase("analysing"));
 
       setAnalysis(result);
+      rememberAnalysis(result);
       setPhase("done");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Something went wrong. Try again.");
@@ -123,9 +127,18 @@ export default function App() {
             )}
           </section>
           {recorder.error && (
-            <p className={styles.alert} role="alert">
-              {recorder.error}
-            </p>
+            <div className={styles.micTrouble} role="alert">
+              <p className={styles.alert}>{recorder.error.message}</p>
+              {recorder.error.denied && (
+                <details className={styles.helper}>
+                  <summary>How do I allow the microphone?</summary>
+                  <p>{guide}</p>
+                </details>
+              )}
+              <button type="button" className={styles.quiet} onClick={recorder.start}>
+                Try again
+              </button>
+            </div>
           )}
           <p className={styles.limits}>English audio. Nothing is stored after you close the page.</p>
         </>

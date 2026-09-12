@@ -3,6 +3,8 @@ import { MAX_SECONDS } from "./audio";
 
 export type RecorderState = "idle" | "starting" | "recording";
 
+export type MicError = { message: string; denied: boolean };
+
 const CANDIDATES = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg"];
 
 export const BANDS = 21;
@@ -13,7 +15,7 @@ export function useRecorder(onFinish: (blob: Blob, seconds: number) => void) {
   const [state, setState] = useState<RecorderState>("idle");
   const [seconds, setSeconds] = useState(0);
   const [levels, setLevels] = useState<number[]>(QUIET);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<MicError | null>(null);
 
   const recorder = useRef<MediaRecorder | null>(null);
   const stream = useRef<MediaStream | null>(null);
@@ -52,7 +54,10 @@ export function useRecorder(onFinish: (blob: Blob, seconds: number) => void) {
 
     if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
       setState("idle");
-      setError("This browser cannot record audio. Upload a file instead, or try current Chrome or Safari.");
+      setError({
+        message: "This browser cannot record audio. Upload a file instead, or try current Chrome or Safari.",
+        denied: false,
+      });
       return;
     }
 
@@ -63,7 +68,7 @@ export function useRecorder(onFinish: (blob: Blob, seconds: number) => void) {
       });
     } catch (cause) {
       setState("idle");
-      setError(micMessage(cause));
+      setError(micFailure(cause));
       return;
     }
 
@@ -77,7 +82,7 @@ export function useRecorder(onFinish: (blob: Blob, seconds: number) => void) {
     } catch {
       teardown();
       setState("idle");
-      setError("This browser could not start a recording. Upload a file instead.");
+      setError({ message: "This browser could not start a recording. Upload a file instead.", denied: false });
       return;
     }
 
@@ -92,7 +97,7 @@ export function useRecorder(onFinish: (blob: Blob, seconds: number) => void) {
       setState("idle");
       setSeconds(0);
       if (blob.size === 0) {
-        setError("Nothing was captured. Check the microphone and try again.");
+        setError({ message: "Nothing was captured. Check the microphone and try again.", denied: false });
         return;
       }
       finish.current(blob, elapsed);
@@ -162,16 +167,23 @@ function startMeter(media: MediaStream, onLevels: (values: number[]) => void): (
   };
 }
 
-function micMessage(cause: unknown): string {
+function micFailure(cause: unknown): MicError {
   const name = cause instanceof Error ? cause.name : "";
   if (name === "NotAllowedError" || name === "SecurityError") {
-    return "Microphone access was blocked. Allow it from the icon in your browser's address bar, then press record again.";
+    return { message: "Microphone access was blocked for this page.", denied: true };
   }
   if (name === "NotFoundError" || name === "OverconstrainedError") {
-    return "No microphone was found. Connect one, or pick one in your system sound settings, then press record again.";
+    return {
+      message:
+        "No microphone was found. Connect one, or pick one in your system sound settings, then press record again.",
+      denied: false,
+    };
   }
   if (name === "NotReadableError") {
-    return "Your microphone is being used by another app. Close that app, then press record again.";
+    return {
+      message: "Your microphone is being used by another app. Close that app, then press record again.",
+      denied: false,
+    };
   }
-  return "We could not start the microphone. Check your browser's microphone permission, then press record again.";
+  return { message: "We could not start the microphone. Check its permission, then press record again.", denied: true };
 }

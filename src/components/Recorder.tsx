@@ -66,6 +66,8 @@ export default function Recorder({ live, starting, seconds, levels, onStart, onS
             ? "Waiting for the microphone."
             : "Up to 10 minutes."}
       </p>
+
+      {live && <p className={styles.formats}>Keep this screen open while recording.</p>}
     </div>
   );
 }
