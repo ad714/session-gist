@@ -1,17 +1,14 @@
-import { NextResponse } from "next/server";
-
-export const maxDuration = 60;
+type Env = {
+  GROQ_API_KEY?: string;
+  ASSETS: { fetch: (request: Request) => Promise<Response> };
+};
 
 const GROQ = "https://api.groq.com/openai/v1";
-const TRANSCRIBE_MODEL = "whisper-large-v3-turbo";
 const TERMS_MODEL = "openai/gpt-oss-120b";
-const BODY_CEILING = 4.4 * 1024 * 1024;
+const MAX_BODY = 6 * 1024 * 1024;
 const MAX_TERMS = 45;
 
 const INSTRUCTIONS = `You are given the transcript of a recorded one-to-one mentorship session between a mentor and a school student. Identify what the session was actually about.
-
-Return JSON in exactly this shape:
-{"terms":[{"term":"study timetable","weight":100},{"term":"exam nerves","weight":64}]}
 
 Rules:
 - Pick the topics, skills, subjects, concerns and named things the session genuinely dwelt on.
@@ -20,38 +17,68 @@ Rules:
 - Each term is one to three words.
 - Exclude filler, greetings, backchannel and stopwords: um, yeah, okay, like, you know, sort of, I mean, right, so, actually, basically.
 - Exclude generic verbs and pleasantries that carry no subject matter.
-- Return between 10 and 40 terms. If the transcript carries no real content, return {"terms":[]}.`;
+- Return between 10 and 40 terms. If the transcript carries no real content, return an empty list.`;
 
-export async function POST(request: Request) {
-  const key = process.env.GROQ_API_KEY;
+const TERMS_SCHEMA = {
+  type: "object",
+  properties: {
+    terms: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          term: { type: "string" },
+          weight: { type: "integer" },
+        },
+        required: ["term", "weight"],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ["terms"],
+  additionalProperties: false,
+};
+
+export default {
+  async fetch(request: Request, env: Env): Promise<Response> {
+    const url = new URL(request.url);
+    if (url.pathname !== "/api/analyze") return env.ASSETS.fetch(request);
+    if (request.method !== "POST") return fail(405, "That endpoint only accepts POST.");
+    return analyse(request, env);
+  },
+};
+
+async function analyse(request: Request, env: Env): Promise<Response> {
+  const key = env.GROQ_API_KEY;
   if (!key) {
-    return fail(500, "The server has no GROQ_API_KEY set. Add it to .env.local and restart.");
+    return fail(
+      500,
+      "The server has no GROQ_API_KEY set. Add it to .dev.vars locally, or with wrangler secret put GROQ_API_KEY.",
+    );
   }
 
-  let audio: File | null = null;
-  try {
-    const form = await request.formData();
-    const value = form.get("audio");
-    if (value instanceof File) audio = value;
-  } catch {
+  const contentType = request.headers.get("content-type") ?? "";
+  if (!contentType.startsWith("multipart/form-data")) {
     return fail(400, "We could not read the uploaded audio.");
   }
-
-  if (!audio || audio.size === 0) {
-    return fail(400, "No audio reached the server. Try again.");
+  if (Number(request.headers.get("content-length") ?? 0) > MAX_BODY) {
+    return fail(413, "That audio is too large to send. Trim it and try again.");
   }
-  if (audio.size > BODY_CEILING) {
+
+  const body = await request.arrayBuffer();
+  if (body.byteLength === 0) return fail(400, "No audio reached the server. Try again.");
+  if (body.byteLength > MAX_BODY) {
     return fail(413, "That audio is too large to send. Trim it and try again.");
   }
 
   let transcript: string;
   try {
-    transcript = await transcribe(audio, key);
+    transcript = await transcribe(body, contentType, key);
   } catch (error) {
     return fromFailure(error, "transcribe");
   }
 
-  if (!transcript.trim() || transcript.trim().length < 12) {
+  if (transcript.trim().length < 12) {
     return fail(422, "We could not make out any speech in that audio. Check the microphone and try again.");
   }
 
@@ -66,22 +93,15 @@ export async function POST(request: Request) {
     return fail(422, "There was speech in that audio, but not enough of it to find any real topics.");
   }
 
-  return NextResponse.json({ terms, transcript: transcript.trim() });
+  return Response.json({ terms, transcript: transcript.trim() });
 }
 
-async function transcribe(audio: File, key: string): Promise<string> {
-  const form = new FormData();
-  form.append("file", audio, audio.name || "session.mp3");
-  form.append("model", TRANSCRIBE_MODEL);
-  form.append("response_format", "json");
-  form.append("language", "en");
-  form.append("temperature", "0");
-
+async function transcribe(body: ArrayBuffer, contentType: string, key: string): Promise<string> {
   const response = await fetch(`${GROQ}/audio/transcriptions`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${key}` },
-    body: form,
-    signal: AbortSignal.timeout(45000),
+    headers: { Authorization: `Bearer ${key}`, "Content-Type": contentType },
+    body,
+    signal: AbortSignal.timeout(60000),
   });
 
   if (!response.ok) throw await upstream(response);
@@ -92,53 +112,27 @@ async function transcribe(audio: File, key: string): Promise<string> {
 async function extractTerms(transcript: string, key: string) {
   const response = await fetch(`${GROQ}/chat/completions`, {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${key}`,
-      "Content-Type": "application/json",
-    },
+    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
     body: JSON.stringify({
       model: TERMS_MODEL,
       temperature: 0.2,
       reasoning_effort: "low",
       response_format: {
         type: "json_schema",
-        json_schema: {
-          name: "session_terms",
-          strict: true,
-          schema: {
-            type: "object",
-            properties: {
-              terms: {
-                type: "array",
-                items: {
-                  type: "object",
-                  properties: {
-                    term: { type: "string" },
-                    weight: { type: "integer" },
-                  },
-                  required: ["term", "weight"],
-                  additionalProperties: false,
-                },
-              },
-            },
-            required: ["terms"],
-            additionalProperties: false,
-          },
-        },
+        json_schema: { name: "session_terms", strict: true, schema: TERMS_SCHEMA },
       },
       messages: [
         { role: "system", content: INSTRUCTIONS },
         { role: "user", content: transcript.slice(0, 40000) },
       ],
     }),
-    signal: AbortSignal.timeout(30000),
+    signal: AbortSignal.timeout(40000),
   });
 
   if (!response.ok) throw await upstream(response);
 
   const data = (await response.json()) as { choices?: { message?: { content?: string } }[] };
-  const raw = data.choices?.[0]?.message?.content ?? "{}";
-  return normalise(raw);
+  return normalise(data.choices?.[0]?.message?.content ?? "{}");
 }
 
 function normalise(raw: string) {
@@ -149,9 +143,7 @@ function normalise(raw: string) {
     throw new Error("The AI service returned something we could not read.");
   }
 
-  const list = Array.isArray(parsed)
-    ? parsed
-    : ((parsed as { terms?: unknown }).terms ?? []);
+  const list = Array.isArray(parsed) ? parsed : ((parsed as { terms?: unknown }).terms ?? []);
   if (!Array.isArray(list)) return [];
 
   const merged = new Map<string, number>();
@@ -185,7 +177,7 @@ async function upstream(response: Response): Promise<Error> {
   return error;
 }
 
-function fromFailure(error: unknown, stage: "transcribe" | "terms") {
+function fromFailure(error: unknown, stage: "transcribe" | "terms"): Response {
   const name = error instanceof Error ? error.name : "";
   const message = error instanceof Error ? error.message : "";
 
@@ -214,6 +206,6 @@ function fromFailure(error: unknown, stage: "transcribe" | "terms") {
   return fail(502, `Something went wrong ${where}. Try again.`);
 }
 
-function fail(status: number, error: string) {
-  return NextResponse.json({ error }, { status });
+function fail(status: number, error: string): Response {
+  return Response.json({ error }, { status });
 }

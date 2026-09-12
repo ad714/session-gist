@@ -1,5 +1,3 @@
-"use client";
-
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Cloud from "@/components/Cloud";
 import Recorder from "@/components/Recorder";
@@ -7,7 +5,7 @@ import Uploader from "@/components/Uploader";
 import { MAX_SECONDS, checkFile, formatBytes, formatClock, prepare, readDuration } from "@/lib/audio";
 import { type Analysis, analyse } from "@/lib/analyse";
 import { useRecorder } from "@/lib/useRecorder";
-import styles from "./page.module.css";
+import styles from "./app.module.css";
 
 type Source = {
   blob: Blob;
@@ -18,7 +16,7 @@ type Source = {
 
 type Phase = "idle" | "review" | "preparing" | "uploading" | "analysing" | "done" | "failed";
 
-export default function Page() {
+export default function App() {
   const [phase, setPhase] = useState<Phase>("idle");
   const [source, setSource] = useState<Source | null>(null);
   const [percent, setPercent] = useState(0);

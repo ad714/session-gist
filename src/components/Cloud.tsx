@@ -1,8 +1,6 @@
-"use client";
-
 import { useEffect, useRef, useState } from "react";
 import { type Placed, type Term, drawToCanvas, layoutCloud } from "@/lib/cloud";
-import styles from "@/app/page.module.css";
+import styles from "@/app.module.css";
 
 const INSET = 26;
 

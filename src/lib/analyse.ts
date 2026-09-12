@@ -9,7 +9,11 @@ export function analyse(
 ): Promise<Analysis> {
   return new Promise((resolve, reject) => {
     const form = new FormData();
-    form.append("audio", mp3, "session.mp3");
+    form.append("file", mp3, "session.mp3");
+    form.append("model", "whisper-large-v3-turbo");
+    form.append("response_format", "json");
+    form.append("language", "en");
+    form.append("temperature", "0");
 
     const request = new XMLHttpRequest();
     request.open("POST", "/api/analyze");

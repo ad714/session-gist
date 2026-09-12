@@ -1,8 +1,6 @@
-"use client";
-
 import { useRef, useState } from "react";
 import { ACCEPTED_LABELS } from "@/lib/audio";
-import styles from "@/app/page.module.css";
+import styles from "@/app.module.css";
 
 type Props = {
   disabled: boolean;

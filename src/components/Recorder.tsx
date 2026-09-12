@@ -1,8 +1,6 @@
-"use client";
-
 import { MAX_SECONDS, formatClock } from "@/lib/audio";
 import { BANDS } from "@/lib/useRecorder";
-import styles from "@/app/page.module.css";
+import styles from "@/app.module.css";
 
 const RING = 44;
 const CIRCUMFERENCE = 2 * Math.PI * RING;

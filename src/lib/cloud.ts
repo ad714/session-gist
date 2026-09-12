@@ -23,9 +23,9 @@ const LEAD_COLOUR = "#141412";
 export function displayFont(): string {
   if (typeof window === "undefined") return "Georgia, serif";
   const value = getComputedStyle(document.documentElement)
-    .getPropertyValue("--font-sentient")
+    .getPropertyValue("--font-display")
     .trim();
-  return value ? `${value}, Georgia, serif` : "Georgia, serif";
+  return value || "Georgia, serif";
 }
 
 export async function layoutCloud(terms: Term[], width: number, height: number): Promise<Placed[]> {
