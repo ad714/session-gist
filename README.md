@@ -19,11 +19,16 @@ All four required parts work end to end on the live URL.
   commit. Anything that is not an accepted format is refused with a message that names the
   extension and lists what is accepted.
 - **AI analysis.** Groq transcribes the audio, then a second model reads the transcript and picks
-  out the terms the session actually dwelt on, with a weight for each.
-- **Word cloud.** Rendered as SVG, sized and toned by weight, downloadable as a PNG.
+  out the terms the session actually dwelt on, with a weight for each. The subject matter can be
+  anything; nothing about the analysis assumes a topic.
+- **Word cloud.** Rendered as SVG, sized and toned by weight, downloadable as a PNG, and the words
+  can be copied as text.
 
 Limits are enforced and stated in the UI before you wait: 10 minutes or 25 MB, whichever comes
 first.
+
+Two of the optional extras in section 06 are in: the transcript is shown beside the cloud and can
+be copied, and the words themselves can be copied. The rest were left out on purpose.
 
 Session only. Nothing is stored, there are no accounts, and closing the tab discards everything.
 
@@ -122,6 +127,16 @@ The trade-off is that the browser sets the transcription parameters in the form 
 endpoint trusts its own client more than it otherwise would. For an unauthenticated evaluation app
 on a free key that is an acceptable trade. With real users I would put size and rate limits in
 front of it and validate the fields.
+
+**The cloud is a summary, not a word count.** The transcript is never shown as the cloud. A model
+reads it and returns concepts, which is why a term like "audience retention" can appear when the
+speaker actually said "my retention drops off around the forty second mark". The terms are an
+abstraction of what was discussed rather than the words that happened to be spoken.
+
+**Nothing assumes a subject.** An early version described the input to the model as a mentorship
+session with a school student, and it returned nothing at all for a recording about starting a
+YouTube channel. The brief describes mentoring as the setting, not as a filter, so the prompt now
+describes the input only as a recorded spoken session.
 
 **The word cloud is horizontal only, and weight controls tone as well as size.** Rotated words
 look busier but are slower to read, and the brief asks for a result readable in a glance. Dominant
