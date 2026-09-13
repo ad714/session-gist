@@ -13,7 +13,7 @@ const INSTRUCTIONS = `You are given the transcript of a recorded spoken session.
 Identify what the session was actually about.
 
 Rules:
-- Pick the topics, skills, subjects, plans, problems and named things the speaking genuinely dwelt on, whatever the subject matter happens to be. Never assume a subject area.
+- Pick the topics, skills, subjects, plans, problems and named things the speaker genuinely dwelt on, whatever the subject matter happens to be. Never assume a subject area.
 - Weight by how much the session was about that term, not by how many times the word appears. The single most dominant term gets 100. Terms mentioned once in passing sit below 20.
 - Merge case, plurals and obvious variants of the same idea into one canonical term, lower case.
 - Each term is one to three words.
