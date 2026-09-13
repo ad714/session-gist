@@ -74,7 +74,7 @@ export default function Cloud({ terms, children }: { terms: Term[]; children?: R
       document.body.appendChild(anchor);
       anchor.click();
       anchor.remove();
-      URL.revokeObjectURL(url);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
     }, "image/png");
   };
 
