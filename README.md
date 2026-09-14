@@ -2,7 +2,7 @@
 
 Record or upload a mentorship session, and get back the words it was actually about.
 
-Live: <LIVE_URL>
+Live: https://session-gist.session-gist.workers.dev
 
 ## What works
 
@@ -33,7 +33,7 @@ away. It clears the moment you start another session.
 ## Run it locally
 
 ```
-git clone <REPO_URL>
+git clone https://github.com/ad714/session-gist.git
 cd session-gist
 npm install
 cp .dev.vars.example .dev.vars
