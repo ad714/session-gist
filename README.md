@@ -125,3 +125,6 @@ what it produced are mine.
 - Split audio longer than 10 minutes into chunks and transcribe them in sequence instead of
   refusing the file
 - A test suite around the audio conversion, which is the part most likely to break quietly
+- Throttle `/api/analyze`. It is public and unauthenticated, so anyone with the URL can spend the
+  free tier. Cloudflare's rate limit binding did not enforce on this plan when I tested it, so this
+  needs a Durable Object counter or a Turnstile check rather than a config line.
