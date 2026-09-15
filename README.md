@@ -26,6 +26,8 @@ another app, with instructions for the browser you are actually in; a file over 
 before any upload; an unsupported format; audio with nothing audible in it, caught in the browser;
 and the AI service failing, rate limiting, timing out, or the key being absent on the server.
 
+Checked on desktop Chrome, Android Chrome and iOS Safari, including each failure path above.
+
 Session only, no accounts. The one exception is that a finished result is held in `sessionStorage`
 for the life of the tab, so a phone dropping the page out of memory does not throw the analysis
 away. It clears the moment you start another session.
